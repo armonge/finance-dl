@@ -6,7 +6,7 @@ import shutil
 import seleniumrequests
 
 from selenium import webdriver
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions
 import signal
@@ -106,7 +106,7 @@ def attach_to_session(executor_url, session_id):
     # Patch the function before creating the driver object
     WebDriver.execute = new_command_execute
     driver = webdriver.Remote(command_executor=executor_url,
-                              desired_capabilities={})
+                              options=webdriver.ChromeOptions())
     driver.session_id = session_id
     # Replace the patched function with original function
     WebDriver.execute = original_execute
@@ -143,13 +143,17 @@ class Scraper(object):
 
         self.chromedriver_bin = chromedriver_bin
         chrome_options = webdriver.ChromeOptions()
-        chrome_options.binary_location = os.getenv("CHROMEDRIVER_CHROME_BINARY")
+        chrome_binary = os.getenv("CHROMEDRIVER_CHROME_BINARY")
+        if chrome_binary:
+            chrome_options.binary_location = chrome_binary
         log_path = os.getenv("TMPLOG", "/tmp/chromedriver.log")
-        service_args = ['--verbose', f'--log-path={log_path}', '--no-sandbox']
-        caps = DesiredCapabilities.CHROME
+        service = Service(
+            executable_path=self.chromedriver_bin,
+            log_output=log_path,
+            service_args=['--verbose', '--no-sandbox'],
+        )
         if capture_network_requests:
-            caps['loggingPrefs'] = {'performance': 'ALL'}
-            caps['goog:loggingPrefs'] = {'performance': 'ALL'}
+            chrome_options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
         chrome_options.add_experimental_option('excludeSwitches', [
             'enable-automation',
             'load-extension',
@@ -171,16 +175,14 @@ class Scraper(object):
             prefs['download.default_directory'] = download_dir
         chrome_options.add_experimental_option('prefs', prefs)
         if headless:
-            chrome_options.add_argument('headless')
+            chrome_options.add_argument('--headless=new')
         if use_seleniumrequests:
             driver_class = seleniumrequests.Chrome
         else:
             driver_class = webdriver.Chrome
         self.driver = driver_class(
-            executable_path=self.chromedriver_bin,
-            chrome_options=chrome_options,
-            desired_capabilities=caps,
-            service_args=service_args,
+            service=service,
+            options=chrome_options,
         )
         print(' --connect=%s --session-id=%s' %
               (self.driver.command_executor._url, self.driver.session_id))
