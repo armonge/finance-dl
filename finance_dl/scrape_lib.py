@@ -13,7 +13,10 @@ import signal
 
 from selenium.webdriver.remote.webdriver import WebDriver
 
-from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    StaleElementReferenceException,
+)
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
@@ -23,22 +26,26 @@ def all_conditions(*conditions):
 
 
 def extract_table_data(table, header_names, single_header=False):
-    rows = table.find_elements(By.XPATH, 'thead/tr | tbody/tr | tr')
+    rows = table.find_elements(By.XPATH, "thead/tr | tbody/tr | tr")
     headers = []
     seen_data = False
     data = []
     for row in rows:
-        cell_elements = row.find_elements(By.XPATH, 'th | td')
+        cell_elements = row.find_elements(By.XPATH, "th | td")
         cell_values = [x.text.strip() for x in cell_elements]
         is_header_values = [x in header_names for x in cell_values if x]
         if len(is_header_values) == 0:
             is_header = True
         else:
             if any(is_header_values) != all(is_header_values):
-                raise RuntimeError('Header mismatch: %r' % (list(
-                    zip(is_header_values,
-                        [x for x in cell_values if x]),
-                )))
+                raise RuntimeError(
+                    "Header mismatch: %r"
+                    % (
+                        list(
+                            zip(is_header_values, [x for x in cell_values if x]),
+                        )
+                    )
+                )
             is_header = any(is_header_values)
         if is_header and (not seen_data or not single_header):
             if seen_data:
@@ -47,7 +54,7 @@ def extract_table_data(table, header_names, single_header=False):
             headers.append(cur_header)
             cur_col = 0
             for text, el in zip(cell_values, cell_elements):
-                colspan = el.get_attribute('colspan')
+                colspan = el.get_attribute("colspan")
                 if colspan is None:
                     colspan = 1
                 else:
@@ -61,7 +68,7 @@ def extract_table_data(table, header_names, single_header=False):
             cur_col = 0
             cur_data = []
             for text, el in zip(cell_values, cell_elements):
-                colspan = el.get_attribute('colspan')
+                colspan = el.get_attribute("colspan")
                 if colspan is None:
                     colspan = 1
                 else:
@@ -74,7 +81,7 @@ def extract_table_data(table, header_names, single_header=False):
                             header_parts.append(part)
                     cur_col += 1
                 if text:
-                    cur_data.append((':'.join(header_parts), text))
+                    cur_data.append((":".join(header_parts), text))
             if cur_data:
                 data.append(cur_data)
     return data
@@ -84,7 +91,8 @@ def find_table_by_headers(scraper, headers):
     tables = None
     for header in headers:
         new_tables = scraper.find_visible_elements_by_descendant_partial_text(
-            header, 'table')
+            header, "table"
+        )
         if tables is None:
             tables = set(new_tables)
         else:
@@ -99,14 +107,15 @@ def attach_to_session(executor_url, session_id):
     def new_command_execute(self, command, params=None):
         if command == "newSession":
             # Mock the response
-            return {'success': 0, 'value': None, 'sessionId': session_id}
+            return {"success": 0, "value": None, "sessionId": session_id}
         else:
             return original_execute(self, command, params)
 
     # Patch the function before creating the driver object
     WebDriver.execute = new_command_execute
-    driver = webdriver.Remote(command_executor=executor_url,
-                              options=webdriver.ChromeOptions())
+    driver = webdriver.Remote(
+        command_executor=executor_url, options=webdriver.ChromeOptions()
+    )
     driver.session_id = session_id
     # Replace the patched function with original function
     WebDriver.execute = original_execute
@@ -126,15 +135,22 @@ def is_displayed(element):
 
 
 class Scraper(object):
-    def __init__(self, download_dir=None, connect=None, chromedriver_bin='finance-dl-chromedriver-wrapper',
-                 headless=True, use_seleniumrequests=False, session_id=None, profile_dir=None,
-                 capture_network_requests=False):
+    def __init__(
+        self,
+        download_dir=None,
+        connect=None,
+        chromedriver_bin="finance-dl-chromedriver-wrapper",
+        headless=True,
+        use_seleniumrequests=False,
+        session_id=None,
+        profile_dir=None,
+        capture_network_requests=False,
+    ):
 
         self.download_dir = download_dir
 
         if connect is not None and session_id is not None:
-            print('Connecting to existing browser: %s %s' % (connect,
-                                                             session_id))
+            print("Connecting to existing browser: %s %s" % (connect, session_id))
             self.driver = attach_to_session(connect, session_id)
             return
 
@@ -147,35 +163,32 @@ class Scraper(object):
         if chrome_binary:
             chrome_options.binary_location = chrome_binary
         log_path = os.getenv("TMPLOG", "/tmp/chromedriver.log")
-        service = Service(
-            executable_path=self.chromedriver_bin,
-            log_output=log_path,
-            service_args=['--verbose', '--no-sandbox'],
-        )
+        service = Service(log_output=log_path)
         if capture_network_requests:
-            chrome_options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
-        chrome_options.add_experimental_option('excludeSwitches', [
-            'enable-automation',
-            'load-extension',
-            'load-component-extension',
-            'ignore-certificate-errors',
-            'test-type',
-        ])
-        chrome_options.add_argument('--no-sandbox')
+            chrome_options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
+        chrome_options.add_experimental_option(
+            "excludeSwitches",
+            [
+                "enable-automation",
+                "load-extension",
+                "load-component-extension",
+                "ignore-certificate-errors",
+                "test-type",
+            ],
+        )
+        chrome_options.add_argument("--disable-dev-shm-usage")
         if profile_dir is not None:
-            chrome_options.add_argument('user-data-dir=%s' % profile_dir)
+            chrome_options.add_argument("user-data-dir=%s" % profile_dir)
             if not os.path.exists(profile_dir):
                 os.makedirs(profile_dir)
         prefs = {}
-        prefs['plugins.plugins_disabled'] = [
-            'Chrome PDF Viewer', 'Chromium PDF Viewer'
-        ]
-        prefs['plugins.always_open_pdf_externally'] = True
+        prefs["plugins.plugins_disabled"] = ["Chrome PDF Viewer", "Chromium PDF Viewer"]
+        prefs["plugins.always_open_pdf_externally"] = True
         if download_dir is not None:
-            prefs['download.default_directory'] = download_dir
-        chrome_options.add_experimental_option('prefs', prefs)
+            prefs["download.default_directory"] = download_dir
+        chrome_options.add_experimental_option("prefs", prefs)
         if headless:
-            chrome_options.add_argument('--headless=new')
+            chrome_options.add_argument("--headless=new")
         if use_seleniumrequests:
             driver_class = seleniumrequests.Chrome
         else:
@@ -184,8 +197,12 @@ class Scraper(object):
             service=service,
             options=chrome_options,
         )
-        print(' --connect=%s --session-id=%s' %
-              (self.driver.command_executor._url, self.driver.session_id))
+        executor_url = getattr(
+            self.driver.command_executor,
+            "url",
+            getattr(self.driver.command_executor, "_url", ""),
+        )
+        print(" --connect=%s --session-id=%s" % (executor_url, self.driver.session_id))
         signal.signal(signal.SIGINT, original_sigint_handler)
 
     def check_after_wait(self):
@@ -197,19 +214,22 @@ class Scraper(object):
         partial_names = []
         other_names = []
         for name in names:
-            if name.endswith('.part') or name.endswith('.crdownload') or name.startswith('.com.google.Chrome'):
+            if (
+                name.endswith(".part")
+                or name.endswith(".crdownload")
+                or name.startswith(".com.google.Chrome")
+            ):
                 partial_names.append(name)
             else:
                 other_names.append(name)
         if len(other_names) == 0:
             return None
         if len(other_names) > 1:
-            raise RuntimeError(
-                'More than one downloaded file: %r' % other_names)
+            raise RuntimeError("More than one downloaded file: %r" % other_names)
         # if len(partial_names) > 0:
         #     raise RuntimeError('Partial download files remain: %r' % partial_names)
         path = os.path.join(self.download_dir, other_names[0])
-        with open(path, 'rb') as f:
+        with open(path, "rb") as f:
             data = f.read()
         if len(data) == 0:
             return None
@@ -219,11 +239,12 @@ class Scraper(object):
     # See http://www.obeythetestinggoat.com/how-to-get-selenium-to-wait-for-page-load-after-a-click.html
     @contextlib.contextmanager
     def wait_for_page_load(self, timeout=30):
-        old_page = self.driver.find_element(By.TAG_NAME, 'html')
+        old_page = self.driver.find_element(By.TAG_NAME, "html")
         yield
         WebDriverWait(self.driver, timeout).until(
             expected_conditions.staleness_of(old_page),
-            message='waiting for page to load')
+            message="waiting for page to load",
+        )
         self.check_after_wait()
 
     @contextlib.contextmanager
@@ -238,8 +259,9 @@ class Scraper(object):
 
         self.wait_and_return(is_new_url)
 
-    def wait_and_return(self, *conditions, timeout=30,
-                        message='Waiting to match conditions'):
+    def wait_and_return(
+        self, *conditions, timeout=30, message="Waiting to match conditions"
+    ):
         results = [None]
 
         def predicate(driver):
@@ -263,13 +285,14 @@ class Scraper(object):
 
             conditions.append(condition)
         return self.wait_and_return(
-            *conditions, timeout=timeout,
-            message='Waiting to locate %r' % (locators, ))
+            *conditions, timeout=timeout, message="Waiting to locate %r" % (locators,)
+        )
 
     def for_each_frame(self):
         self.driver.switch_to.default_content()
 
         seen_ids = set()
+
         def helper(nesting_level=0):
             def handle_frames(frames):
                 frames = [f for f in frames if f.id not in seen_ids]
@@ -278,19 +301,20 @@ class Scraper(object):
                     self.driver.switch_to.frame(frame)
                     yield from helper(nesting_level=nesting_level + 1)
                     self.driver.switch_to.parent_frame()
+
             yield
-            for element_name in ['frame', 'iframe']:
+            for element_name in ["frame", "iframe"]:
                 try:
-                    other_frames = self.find_visible_elements(
-                        By.TAG_NAME, element_name)
+                    other_frames = self.find_visible_elements(By.TAG_NAME, element_name)
                     yield from handle_frames(other_frames)
                 except:
                     pass
 
         yield from helper()
 
-    def find_elements_in_any_frame(self, by_method, locator, predicate=None,
-                                   only_displayed=False):
+    def find_elements_in_any_frame(
+        self, by_method, locator, predicate=None, only_displayed=False
+    ):
         for frame in self.for_each_frame():
             try:
                 for element in self.driver.find_elements(by_method, locator):
@@ -300,6 +324,7 @@ class Scraper(object):
                                 continue
                         except:
                             import traceback
+
                             traceback.print_exc()
                             continue
                     if predicate is None or predicate(element):
@@ -308,20 +333,20 @@ class Scraper(object):
                 pass
 
     def find_element_in_any_frame(self, by_method, locator, **kwargs):
-        for element in self.find_elements_in_any_frame(by_method, locator,
-                                                       **kwargs):
+        for element in self.find_elements_in_any_frame(by_method, locator, **kwargs):
             return element
         raise NoSuchElementException
 
     def interact(self, global_vars, local_vars):
         import IPython
+
         # ipshell = InteractiveShellEmbed(banner1='', exit_msg='')
         # ipshell.extension_manager.load_extension('autoreload')
         # ipshell.run_line_magic('autoreload', '2')
         # ipshell.autoindent = False
         ns = global_vars.copy()
         ns.update(local_vars)
-        ns['self'] = self
+        ns["self"] = self
         IPython.terminal.ipapp.launch_new_instance(argv=[], user_ns=ns)
         # ipshell(local_ns=ns)
         # vars = global_vars.copy()
@@ -330,14 +355,14 @@ class Scraper(object):
         # shell.interact()
 
     def find_username_and_password(self):
-        passwords = self.driver.find_elements(By.XPATH,
-                                              '//input[@type="password"]')
+        passwords = self.driver.find_elements(By.XPATH, '//input[@type="password"]')
         passwords = [x for x in passwords if is_displayed(x)]
         if len(passwords) == 0:
             raise NoSuchElementException()
         password = passwords[0]
         username = password.find_elements(
-            By.XPATH, 'preceding::input[@type="text" or @type="email"]')[-1]
+            By.XPATH, 'preceding::input[@type="text" or @type="email"]'
+        )[-1]
         if not is_displayed(username):
             raise NoSuchElementException()
         return username, password
@@ -350,32 +375,37 @@ class Scraper(object):
                 pass
         raise NoSuchElementException()
 
-    def find_visible_elements_by_descendant_partial_text(
-            self, text, element_name):
+    def find_visible_elements_by_descendant_partial_text(self, text, element_name):
         return self.find_elements_by_descendant_partial_text(
-            text, element_name, only_displayed=True)
+            text, element_name, only_displayed=True
+        )
 
-    def find_elements_by_descendant_partial_text(self, text, element_name,
-                                                 only_displayed=False):
-        all_elements = self.driver.find_elements(By.XPATH, 
-            "//text()[contains(.,%r)]/ancestor::*[self::%s][1]" %
-            (text, element_name))
+    def find_elements_by_descendant_partial_text(
+        self, text, element_name, only_displayed=False
+    ):
+        all_elements = self.driver.find_elements(
+            By.XPATH,
+            "//text()[contains(.,%r)]/ancestor::*[self::%s][1]" % (text, element_name),
+        )
         if only_displayed:
             return [x for x in all_elements if is_displayed(x)]
         return all_elements
 
-    def find_elements_by_descendant_text_match(self, text_match, element_name,
-                                               only_displayed=False):
-        all_elements = self.driver.find_elements(By.XPATH, 
-            "//text()[%s]/ancestor::*[self::%s][1]" % (text_match,
-                                                       element_name))
+    def find_elements_by_descendant_text_match(
+        self, text_match, element_name, only_displayed=False
+    ):
+        all_elements = self.driver.find_elements(
+            By.XPATH,
+            "//text()[%s]/ancestor::*[self::%s][1]" % (text_match, element_name),
+        )
         if only_displayed:
             return [x for x in all_elements if is_displayed(x)]
         return all_elements
 
     def find_visible_elements_by_partial_text(self, text, element_name):
-        all_elements = self.driver.find_elements(By.XPATH, 
-            "//%s[contains(.,%r)]" % (element_name, text))
+        all_elements = self.driver.find_elements(
+            By.XPATH, "//%s[contains(.,%r)]" % (element_name, text)
+        )
         return [x for x in all_elements if is_displayed(x)]
 
     def find_visible_elements(self, by_method, locator):
@@ -383,18 +413,27 @@ class Scraper(object):
         return [x for x in elements if is_displayed(x)]
 
     def click(self, link):
-        self.driver.execute_script('arguments[0].scrollIntoView(true);', link)
-        link.click()
+        self.driver.execute_script("arguments[0].scrollIntoView(true);", link)
+        try:
+            link.click()
+        except Exception:
+            self.driver.execute_script("arguments[0].click();", link)
 
 
 @contextlib.contextmanager
-def temp_scraper(scraper_type, *args, headless=True, connect=None,
-                 session_id=None, **kwargs):
+def temp_scraper(
+    scraper_type, *args, headless=True, connect=None, session_id=None, **kwargs
+):
     download_dir = tempfile.mkdtemp()
     try:
-        scraper = scraper_type(*args, download_dir=download_dir,
-                               connect=connect, session_id=session_id,
-                               headless=headless, **kwargs)
+        scraper = scraper_type(
+            *args,
+            download_dir=download_dir,
+            connect=connect,
+            session_id=session_id,
+            headless=headless,
+            **kwargs,
+        )
         try:
             yield scraper
         finally:
@@ -402,7 +441,7 @@ def temp_scraper(scraper_type, *args, headless=True, connect=None,
                 try:
                     scraper.driver.quit()
                 except Exception as e:
-                    print('Error quitting driver: %r' % e)
+                    print("Error quitting driver: %r" % e)
     finally:
         shutil.rmtree(download_dir)
 
@@ -413,11 +452,12 @@ def retry(func, num_tries=3, retry_delay=0):
             return func()
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             num_tries -= 1
             if num_tries <= 0:
                 raise
-        print('Waiting %g seconds before retrying' % (retry_delay, ))
+        print("Waiting %g seconds before retrying" % (retry_delay,))
         time.sleep(retry_delay)
 
 
@@ -427,7 +467,7 @@ def run_with_scraper(scraper_class, **kwargs):
     def fetch():
         nonlocal first_call
         if not first_call:
-            kwargs['headless'] = False
+            kwargs["headless"] = False
         first_call = False
         with temp_scraper(scraper_class, **kwargs) as scraper:
             scraper.run()
